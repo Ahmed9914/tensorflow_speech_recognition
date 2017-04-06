@@ -6,22 +6,8 @@ from __future__ import print_function
 import time
 
 import tensorflow as tf
-import scipy.io.wavfile as wav
 import numpy as np
-
-try:
-    from python_speech_features import mfcc
-except ImportError:
-    print("Failed to import python_speech_features.\n Try pip install python_speech_features.")
-    raise ImportError
-
-from utils import maybe_download as maybe_download
-from utils import sparse_tuple_from as sparse_tuple_from
-
-# Constants
-SPACE_TOKEN = '<space>'
-SPACE_INDEX = 0
-FIRST_INDEX = ord('a') - 1  # 0 is reserved to space
+import utils
 
 # Some configs
 num_features = 13
@@ -41,38 +27,24 @@ num_batches_per_epoch = int(num_examples/batch_size)
 
 # Loading the data
 
-audio_filename  = 'wav/1_001002.wav'   #maybe_download('LDC93S1.wav', 93638)
+audio_filename  = 'wav/2_001002.wav'   #maybe_download('LDC93S1.wav', 93638)
 target_filename = 'wav/001002.txt'     #maybe_download('LDC93S1.txt', 62)
 
-fs, audio = wav.read(audio_filename)
+inputs = utils.wav_mfcc(audio_filename)
 
-inputs = mfcc(audio, samplerate=fs)
 # Tranform in 3D array
 train_inputs = np.asarray(inputs[np.newaxis, :])
 train_inputs = (train_inputs - np.mean(train_inputs))/np.std(train_inputs)
 train_seq_len = [train_inputs.shape[1]]
 
 # Readings targets
-with open(target_filename, 'r') as f:
-
-    #Only the first line is necessary
-    line = f.readlines()[0].strip().lower()
-    original = line
-    targets = list(line)
-
-# Adding blank label
-targets = np.hstack([SPACE_TOKEN if x == '' else list(x) for x in targets])
-
-# Transform char into index
-targets = np.asarray([SPACE_INDEX if x == SPACE_TOKEN else ord(x) - FIRST_INDEX
-                      for x in targets])
+targets, original = utils.encode_target_file(target_filename)
 
 # Creating sparse representation to feed the placeholder
-train_targets = sparse_tuple_from([targets])
+train_targets = utils.sparse_tuple_from([targets])
 
 # We don't have a validation dataset :(
-val_inputs, val_targets, val_seq_len = train_inputs, train_targets, \
-                                       train_seq_len
+val_inputs, val_targets, val_seq_len = train_inputs, train_targets, train_seq_len
 
 
 # THE MAIN CODE!
@@ -176,11 +148,7 @@ with tf.Session(graph=graph) as session:
                          val_cost, val_ler, time.time() - start))
     # Decoding
     d = session.run(decoded[0], feed_dict=feed)
-    str_decoded = ''.join([chr(x) for x in np.asarray(d[1]) + FIRST_INDEX])
-    # Replacing blank label to none
-    str_decoded = str_decoded.replace(chr(ord('z') + 1), '')
-    # Replacing space label to space
-    str_decoded = str_decoded.replace(chr(ord('a') - 1), ' ')
+    str_decoded = utils.decode_result(d[1])
 
     print('Original:\n%s' % original)
     print('Decoded:\n%s' % str_decoded)

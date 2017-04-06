@@ -7,6 +7,9 @@ from urllib import urlretrieve
 import os
 import sys
 import numpy as np
+import scipy.io.wavfile as wav
+from python_speech_features import mfcc
+import re
 
 url = 'https://catalog.ldc.upenn.edu/desc/addenda/'
 last_percent_reported = None
@@ -126,3 +129,39 @@ def pad_sequences(sequences, maxlen=None, dtype=np.float32,
         else:
             raise ValueError('Padding type "%s" not understood' % padding)
     return x, lengths
+
+def wav_mfcc(wav_filename):
+    fs, audio = wav.read(wav_filename)
+    coeff = mfcc(audio, samplerate=fs)
+    return coeff
+
+def encode_target(target_str):
+    '''
+    Encodes each characters of a string (alphabetic only) into their index (0 for spaces)
+    Returns encoded string and the original
+    '''
+    SPACE_INDEX = 0
+    FIRST_INDEX = ord('a') - 1  # 0 is reserved to space
+
+    normalized = re.sub('[^a-z ]', '', target_str.strip().lower())
+    targets = list(normalized)
+    encoded = np.asarray([SPACE_INDEX if x == ' ' else ord(x) - FIRST_INDEX for x in targets])
+
+    return encoded, normalized
+
+def encode_target_file(txt_filename):
+    with open(txt_filename, 'r') as f:
+        #Only the first line is necessary
+        line = f.readlines()[0]
+        return encode_target(line)
+
+def decode_result(result_array):
+    '''
+    Reverses encode_target
+    '''
+    str_decoded = ''.join([chr(x) for x in np.asarray(result_array) + ord('a') - 1])
+    # Replacing blank label to none
+    str_decoded = str_decoded.replace(chr(ord('z') + 1), '')
+    # Replacing space label to space
+    str_decoded = str_decoded.replace(chr(ord('a') - 1), ' ')
+    return str_decoded
