@@ -4,6 +4,7 @@ from __future__ import division
 from __future__ import print_function
 
 import time
+import glob
 
 import tensorflow as tf
 import numpy as np
@@ -12,7 +13,7 @@ import utils
 def prepare_inputs(wav_filenames):
     inputs = []
     for wav in wav_filenames:
-        mfcc = utils.wav_mfcc('wav/' + wav)
+        mfcc = utils.wav_mfcc(wav)
         mfcc = (mfcc - np.mean(mfcc)) / np.std(mfcc)  # Normalize
         inputs.append(mfcc)
     train_inputs = np.asarray(inputs)
@@ -32,17 +33,17 @@ num_features = 13
 num_classes = ord('z') - ord('a') + 1 + 1 + 1
 
 # Hyper-parameters
-num_epochs = 600
-num_hidden = 100
+num_epochs = 5000
+num_hidden = 50
 num_layers = 1
-batch_size = 2
+batch_size = 4
 initial_learning_rate = 1e-2
 momentum = 0.9
 
 # Training data
 
-wav_files_train = ['0_001002.wav', '1_001002.wav', '2_001002.wav', '3_001002.wav']
-wav_files_test  = ['4_001002.wav', '5_001002.wav']
+wav_files_train = glob.glob('wav/train/*.wav')
+wav_files_test  = glob.glob('wav/test/*.wav')
 target_str = "alhamdulilahirabilxalamin"
 
 num_examples = len(wav_files_train)
@@ -111,8 +112,7 @@ with graph.as_default():
     loss = tf.nn.ctc_loss(targets, logits, seq_len)
     cost = tf.reduce_mean(loss)
 
-    optimizer = tf.train.MomentumOptimizer(initial_learning_rate,
-                                           0.9).minimize(cost)
+    optimizer = tf.train.MomentumOptimizer(initial_learning_rate, momentum).minimize(cost)
 
     # Option 2: tf.contrib.ctc.ctc_beam_search_decoder
     # (it's slower but you'll get better results)
@@ -121,6 +121,28 @@ with graph.as_default():
     # Inaccuracy: label error rate
     ler = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32),
                                           targets))
+
+# Decoding all at once. Note that this isn't the best way
+test_inputs = prepare_inputs(wav_files_test)
+
+# Padding input to max_time_step of this batch
+batch_train_inputs, batch_train_seq_len = utils.pad_sequences(test_inputs)
+
+val_feed = {
+    inputs: batch_train_inputs,
+    seq_len: batch_train_seq_len
+}
+
+def do_decode(session):
+    # Decoding
+    d = session.run(decoded[0], feed_dict=val_feed)
+    dense_decoded = tf.sparse_tensor_to_dense(d, default_value=-1).eval(session=session)
+
+    print()
+    for i, seq in enumerate(dense_decoded):
+        seq = [s for s in seq if s != -1]
+        print('[%d] Decoded:\t%s' % (i, utils.decode_result(seq)))
+
 
 with tf.Session(graph=graph) as session:
     # Initializate the weights and biases
@@ -131,62 +153,43 @@ with tf.Session(graph=graph) as session:
         train_cost = train_ler = 0
         start = time.time()
 
-        for batch in range(num_batches_per_epoch):
+        try:
+            for batch in range(num_batches_per_epoch):
 
-            # Getting the index
-            indexes = [i % num_examples for i in range(batch * batch_size, (batch + 1) * batch_size)]
+                # Getting the index
+                indexes = [i % num_examples for i in range(batch * batch_size, (batch + 1) * batch_size)]
 
-            batch_train_inputs = train_inputs[indexes]
-            # Padding input to max_time_step of this batch
-            batch_train_inputs, batch_train_seq_len = utils.pad_sequences(batch_train_inputs)
+                batch_train_inputs = train_inputs[indexes]
+                # Padding input to max_time_step of this batch
+                batch_train_inputs, batch_train_seq_len = utils.pad_sequences(batch_train_inputs)
 
-            # Converting to sparse representation so as to to feed SparseTensor input
-            batch_train_targets = utils.sparse_tuple_from(train_targets[indexes])
+                # Converting to sparse representation so as to to feed SparseTensor input
+                batch_train_targets = utils.sparse_tuple_from(train_targets[indexes])
 
-            feed = {inputs: batch_train_inputs,
-                    targets: batch_train_targets,
-                    seq_len: batch_train_seq_len}
+                feed = {inputs: batch_train_inputs,
+                        targets: batch_train_targets,
+                        seq_len: batch_train_seq_len}
 
-            batch_cost, _ = session.run([cost, optimizer], feed)
-            train_cost += batch_cost*batch_size
-            train_ler += session.run(ler, feed_dict=feed)*batch_size
+                batch_cost, _ = session.run([cost, optimizer], feed)
+                train_cost += batch_cost*batch_size
+                train_ler += session.run(ler, feed_dict=feed)*batch_size
 
 
-        # Shuffle the data
-        shuffled_indexes = np.random.permutation(num_examples)
-        train_inputs = train_inputs[shuffled_indexes]
-        train_targets = train_targets[shuffled_indexes]
+            # Shuffle the data
+            shuffled_indexes = np.random.permutation(num_examples)
+            train_inputs = train_inputs[shuffled_indexes]
+            train_targets = train_targets[shuffled_indexes]
 
-        # Metrics mean
-        train_cost /= num_examples
-        train_ler /= num_examples
+            # Metrics mean
+            train_cost /= num_examples
+            train_ler /= num_examples
 
-        log = "Epoch {}/{}, train_cost = {:.3f}, train_ler = {:.3f}, time = {:.3f}"
-        print(log.format(curr_epoch+1, num_epochs, train_cost, train_ler, time.time() - start))
+            log = "Epoch {}/{}, train_cost = {:.3f}, train_ler = {:.3f}, time = {:.3f}"
+            print(log.format(curr_epoch+1, num_epochs, train_cost, train_ler, time.time() - start))
 
-    # Decoding all at once. Note that this isn't the best way
-    test_inputs = prepare_inputs(wav_files_test)
+        except KeyboardInterrupt:
+            do_decode(session)
 
-    # Padding input to max_time_step of this batch
-    batch_train_inputs, batch_train_seq_len = utils.pad_sequences(test_inputs)
-
-    # Converting to sparse representation so as to to feed SparseTensor input
-    batch_train_targets = utils.sparse_tuple_from(train_targets)
-
-    feed = {inputs: batch_train_inputs,
-            targets: batch_train_targets,
-            seq_len: batch_train_seq_len
-            }
-
-    # Decoding
-    d = session.run(decoded[0], feed_dict=feed)
-    dense_decoded = tf.sparse_tensor_to_dense(d, default_value=-1).eval(session=session)
-
-    for i, seq in enumerate(dense_decoded):
-
-        seq = [s for s in seq if s != -1]
-
-        print('Sequence %d' % i)
-        print('Decoded:\n%s' % utils.decode_result(seq))
-        
+    print("FINISHED")
+    do_decode(session)
 

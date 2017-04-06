@@ -132,7 +132,7 @@ def pad_sequences(sequences, maxlen=None, dtype=np.float32,
 
 def wav_mfcc(wav_filename):
     fs, audio = wav.read(wav_filename)
-    coeff = mfcc(audio, samplerate=fs)
+    coeff = mfcc(audio, samplerate=fs, winlen=0.050)
     return coeff
 
 def encode_target(target_str):
