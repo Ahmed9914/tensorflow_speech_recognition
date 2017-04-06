@@ -3,42 +3,28 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
-
 import time
 
 import tensorflow as tf
-import scipy.io.wavfile as wav
 import numpy as np
+import utils
 
-from six.moves import xrange as range
+def prepare_training_inputs(wav_filenames):
+    inputs = []
+    for wav in wav_filenames:
+        mfcc = utils.wav_mfcc(wav)
+        mfcc = (mfcc - np.mean(mfcc)) / np.std(mfcc)  # Normalize
+        inputs.append(mfcc)
+    train_inputs = np.asarray(inputs)
+    return train_inputs
 
-try:
-    from python_speech_features import mfcc
-except ImportError:
-    print("Failed to import python_speech_features.\n Try pip install python_speech_features.")
-    raise ImportError
-from utils import sparse_tuple_from as sparse_tuple_from
-from utils import pad_sequences as pad_sequences
-
-def fake_data(num_examples, num_features, num_labels, min_size = 10, max_size=100):
-
-    # Generating different timesteps for each fake data
-    timesteps = np.random.randint(min_size, max_size, (num_examples,))
-
-    # Generating random input
-    inputs = np.asarray([np.random.randn(t, num_features).astype(np.float32) for t in timesteps])
-
-    # Generating random label, the size must be less or equal than timestep in order to achieve the end of the lattice in max timestep
-    labels = np.asarray([np.random.randint(0, num_labels, np.random.randint(1, inputs[i].shape[0], (1,))).astype(np.int64) for i, _ in enumerate(timesteps)])
-
-    return inputs, labels
-
-# Constants
-SPACE_TOKEN = '<space>'
-SPACE_INDEX = 0
-FIRST_INDEX = ord('a') - 1  # 0 is reserved to space
+def prepare_training_targets(target_str, num_samples):
+    targets = []
+    for i in range(num_samples):
+        encoded, _ = utils.encode_target(target_str)
+        targets.append(encoded)
+    train_targets = np.asarray(targets)
+    return train_targets
 
 # Some configs
 num_features = 13
@@ -46,24 +32,26 @@ num_features = 13
 num_classes = ord('z') - ord('a') + 1 + 1 + 1
 
 # Hyper-parameters
-num_epochs = 40
+num_epochs = 400
 num_hidden = 50
 num_layers = 1
 batch_size = 2
 initial_learning_rate = 1e-2
 momentum = 0.9
 
-num_examples = 16
+# Training data
+
+wav_files = ['wav/0_001002.wav', 'wav/1_001002.wav', 'wav/2_001002.wav', 'wav/3_001002.wav']
+target_str = "alhamdulilahirabilxalamin"
+
+num_examples = len(wav_files)
 num_batches_per_epoch = int(num_examples/batch_size)
 
-inputs, labels = fake_data(num_examples, num_features, num_classes - 1)
-
 # You can preprocess the input data here
-train_inputs = inputs
+train_inputs = prepare_training_inputs(wav_files)
 
 # You can preprocess the target data here
-train_targets = labels
-
+train_targets = prepare_training_targets(target_str, num_examples)
 
 # THE MAIN CODE!
 
@@ -149,10 +137,10 @@ with tf.Session(graph=graph) as session:
 
             batch_train_inputs = train_inputs[indexes]
             # Padding input to max_time_step of this batch
-            batch_train_inputs, batch_train_seq_len = pad_sequences(batch_train_inputs)
+            batch_train_inputs, batch_train_seq_len = utils.pad_sequences(batch_train_inputs)
 
             # Converting to sparse representation so as to to feed SparseTensor input
-            batch_train_targets = sparse_tuple_from(train_targets[indexes])
+            batch_train_targets = utils.sparse_tuple_from(train_targets[indexes])
 
             feed = {inputs: batch_train_inputs,
                     targets: batch_train_targets,
@@ -178,10 +166,10 @@ with tf.Session(graph=graph) as session:
     # Decoding all at once. Note that this isn't the best way
 
     # Padding input to max_time_step of this batch
-    batch_train_inputs, batch_train_seq_len = pad_sequences(train_inputs)
+    batch_train_inputs, batch_train_seq_len = utils.pad_sequences(train_inputs)
 
     # Converting to sparse representation so as to to feed SparseTensor input
-    batch_train_targets = sparse_tuple_from(train_targets)
+    batch_train_targets = utils.sparse_tuple_from(train_targets)
 
     feed = {inputs: batch_train_inputs,
             targets: batch_train_targets,
@@ -197,5 +185,6 @@ with tf.Session(graph=graph) as session:
         seq = [s for s in seq if s != -1]
 
         print('Sequence %d' % i)
-        print('\t Original:\n%s' % train_targets[i])
-        print('\t Decoded:\n%s' % seq)
+        print('Decoded:\n%s' % utils.decode_result(seq))
+        
+
