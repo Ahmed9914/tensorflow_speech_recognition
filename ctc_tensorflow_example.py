@@ -9,8 +9,6 @@ import tensorflow as tf
 import scipy.io.wavfile as wav
 import numpy as np
 
-from six.moves import xrange as range
-
 try:
     from python_speech_features import mfcc
 except ImportError:
@@ -31,7 +29,7 @@ num_features = 13
 num_classes = ord('z') - ord('a') + 1 + 1 + 1
 
 # Hyper-parameters
-num_epochs = 200
+num_epochs = 300
 num_hidden = 50
 num_layers = 1
 batch_size = 1
@@ -43,8 +41,8 @@ num_batches_per_epoch = int(num_examples/batch_size)
 
 # Loading the data
 
-audio_filename = maybe_download('LDC93S1.wav', 93638)
-target_filename = maybe_download('LDC93S1.txt', 62)
+audio_filename  = 'wav/1_001002.wav'   #maybe_download('LDC93S1.wav', 93638)
+target_filename = 'wav/001002.txt'     #maybe_download('LDC93S1.txt', 62)
 
 fs, audio = wav.read(audio_filename)
 
@@ -57,13 +55,10 @@ train_seq_len = [train_inputs.shape[1]]
 # Readings targets
 with open(target_filename, 'r') as f:
 
-    #Only the last line is necessary
-    line = f.readlines()[-1]
-
-    # Get only the words between [a-z] and replace period for none
-    original = ' '.join(line.strip().lower().split(' ')[2:]).replace('.', '')
-    targets = original.replace(' ', '  ')
-    targets = targets.split(' ')
+    #Only the first line is necessary
+    line = f.readlines()[0].strip().lower()
+    original = line
+    targets = list(line)
 
 # Adding blank label
 targets = np.hstack([SPACE_TOKEN if x == '' else list(x) for x in targets])
@@ -150,7 +145,7 @@ with graph.as_default():
 
 with tf.Session(graph=graph) as session:
     # Initializate the weights and biases
-    tf.tf.global_variables_initializer().run()
+    tf.global_variables_initializer().run()
 
 
     for curr_epoch in range(num_epochs):

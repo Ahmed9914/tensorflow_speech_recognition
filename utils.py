@@ -2,8 +2,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from six.moves.urllib.request import urlretrieve
-from six.moves import xrange as range
+from urllib import urlretrieve
 
 import os
 import sys
