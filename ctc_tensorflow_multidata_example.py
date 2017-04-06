@@ -9,16 +9,16 @@ import tensorflow as tf
 import numpy as np
 import utils
 
-def prepare_training_inputs(wav_filenames):
+def prepare_inputs(wav_filenames):
     inputs = []
     for wav in wav_filenames:
-        mfcc = utils.wav_mfcc(wav)
+        mfcc = utils.wav_mfcc('wav/' + wav)
         mfcc = (mfcc - np.mean(mfcc)) / np.std(mfcc)  # Normalize
         inputs.append(mfcc)
     train_inputs = np.asarray(inputs)
     return train_inputs
 
-def prepare_training_targets(target_str, num_samples):
+def prepare_targets(target_str, num_samples):
     targets = []
     for i in range(num_samples):
         encoded, _ = utils.encode_target(target_str)
@@ -32,8 +32,8 @@ num_features = 13
 num_classes = ord('z') - ord('a') + 1 + 1 + 1
 
 # Hyper-parameters
-num_epochs = 400
-num_hidden = 50
+num_epochs = 600
+num_hidden = 100
 num_layers = 1
 batch_size = 2
 initial_learning_rate = 1e-2
@@ -41,17 +41,18 @@ momentum = 0.9
 
 # Training data
 
-wav_files = ['wav/0_001002.wav', 'wav/1_001002.wav', 'wav/2_001002.wav', 'wav/3_001002.wav']
+wav_files_train = ['0_001002.wav', '1_001002.wav', '2_001002.wav', '3_001002.wav']
+wav_files_test  = ['4_001002.wav', '5_001002.wav']
 target_str = "alhamdulilahirabilxalamin"
 
-num_examples = len(wav_files)
+num_examples = len(wav_files_train)
 num_batches_per_epoch = int(num_examples/batch_size)
 
 # You can preprocess the input data here
-train_inputs = prepare_training_inputs(wav_files)
+train_inputs = prepare_inputs(wav_files_train)
 
 # You can preprocess the target data here
-train_targets = prepare_training_targets(target_str, num_examples)
+train_targets = prepare_targets(target_str, num_examples)
 
 # THE MAIN CODE!
 
@@ -115,7 +116,7 @@ with graph.as_default():
 
     # Option 2: tf.contrib.ctc.ctc_beam_search_decoder
     # (it's slower but you'll get better results)
-    decoded, log_prob = tf.nn.ctc_greedy_decoder(logits, seq_len)
+    decoded, log_prob = tf.nn.ctc_beam_search_decoder(logits, seq_len)
 
     # Inaccuracy: label error rate
     ler = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32),
@@ -164,9 +165,10 @@ with tf.Session(graph=graph) as session:
         print(log.format(curr_epoch+1, num_epochs, train_cost, train_ler, time.time() - start))
 
     # Decoding all at once. Note that this isn't the best way
+    test_inputs = prepare_inputs(wav_files_test)
 
     # Padding input to max_time_step of this batch
-    batch_train_inputs, batch_train_seq_len = utils.pad_sequences(train_inputs)
+    batch_train_inputs, batch_train_seq_len = utils.pad_sequences(test_inputs)
 
     # Converting to sparse representation so as to to feed SparseTensor input
     batch_train_targets = utils.sparse_tuple_from(train_targets)
