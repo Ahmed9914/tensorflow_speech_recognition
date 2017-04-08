@@ -51,7 +51,7 @@ if len(sys.argv) < 2:
 surah = sys.argv[1]
 ayah  = sys.argv[2]
 
-directory = "wav/train/" + surah
+directory = "wav/" + surah
 if not os.path.exists(directory):
     os.makedirs(directory)
 
