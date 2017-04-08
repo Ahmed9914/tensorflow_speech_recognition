@@ -33,10 +33,10 @@ num_features = 13
 num_classes = ord('z') - ord('a') + 1 + 1 + 1
 
 # Hyper-parameters
-num_epochs = 5000
-num_hidden = 50
+num_epochs = 500
+num_hidden = 250
 num_layers = 1
-batch_size = 4
+batch_size = 8
 initial_learning_rate = 1e-2
 momentum = 0.9
 
@@ -44,7 +44,7 @@ momentum = 0.9
 
 wav_files_train = glob.glob('wav/train/*.wav')
 wav_files_test  = glob.glob('wav/test/*.wav')
-target_str = "alhamdulilahirabilxalamin"
+target_str = "alhamdu lilahi rabil alamin"
 
 num_examples = len(wav_files_train)
 num_batches_per_epoch = int(num_examples/batch_size)
@@ -112,7 +112,9 @@ with graph.as_default():
     loss = tf.nn.ctc_loss(targets, logits, seq_len)
     cost = tf.reduce_mean(loss)
 
-    optimizer = tf.train.MomentumOptimizer(initial_learning_rate, momentum).minimize(cost)
+    # IDK but adam gives better result
+    #optimizer = tf.train.MomentumOptimizer(initial_learning_rate, momentum).minimize(cost)
+    optimizer = tf.train.AdamOptimizer(initial_learning_rate).minimize(cost)
 
     # Option 2: tf.contrib.ctc.ctc_beam_search_decoder
     # (it's slower but you'll get better results)
@@ -125,20 +127,20 @@ with graph.as_default():
 # Decoding all at once. Note that this isn't the best way
 test_inputs = prepare_inputs(wav_files_test)
 
-# Padding input to max_time_step of this batch
-batch_train_inputs, batch_train_seq_len = utils.pad_sequences(test_inputs)
+def do_decode(session, test_inputs):
 
-val_feed = {
-    inputs: batch_train_inputs,
-    seq_len: batch_train_seq_len
-}
+    # Padding input to max_time_step of this batch
+    batch_train_inputs, batch_train_seq_len = utils.pad_sequences(test_inputs)
 
-def do_decode(session):
+    val_feed = {
+        inputs: batch_train_inputs,
+        seq_len: batch_train_seq_len
+    }
+
     # Decoding
     d = session.run(decoded[0], feed_dict=val_feed)
     dense_decoded = tf.sparse_tensor_to_dense(d, default_value=-1).eval(session=session)
 
-    print()
     for i, seq in enumerate(dense_decoded):
         seq = [s for s in seq if s != -1]
         print('[%d] Decoded:\t%s' % (i, utils.decode_result(seq)))
@@ -188,8 +190,14 @@ with tf.Session(graph=graph) as session:
             print(log.format(curr_epoch+1, num_epochs, train_cost, train_ler, time.time() - start))
 
         except KeyboardInterrupt:
-            do_decode(session)
+            print("Train data:")
+            do_decode(session, train_inputs)
+            print("\nTest data:")
+            do_decode(session, test_inputs)
 
     print("FINISHED")
-    do_decode(session)
+    print("Train data:")
+    do_decode(session, train_inputs)
+    print("\nTest data:")
+    do_decode(session, test_inputs)
 
