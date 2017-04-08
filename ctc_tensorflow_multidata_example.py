@@ -4,28 +4,10 @@ from __future__ import division
 from __future__ import print_function
 
 import time
-import glob
-
 import tensorflow as tf
 import numpy as np
 import utils
-
-def prepare_inputs(wav_filenames):
-    inputs = []
-    for wav in wav_filenames:
-        mfcc = utils.wav_mfcc(wav)
-        mfcc = (mfcc - np.mean(mfcc)) / np.std(mfcc)  # Normalize
-        inputs.append(mfcc)
-    train_inputs = np.asarray(inputs)
-    return train_inputs
-
-def prepare_targets(target_str, num_samples):
-    targets = []
-    for i in range(num_samples):
-        encoded, _ = utils.encode_target(target_str)
-        targets.append(encoded)
-    train_targets = np.asarray(targets)
-    return train_targets
+import train_data
 
 # Some configs
 num_features = 13
@@ -33,8 +15,8 @@ num_features = 13
 num_classes = ord('z') - ord('a') + 1 + 1 + 1
 
 # Hyper-parameters
-num_epochs = 500
-num_hidden = 250
+num_epochs = 2000
+num_hidden = 300
 num_layers = 1
 batch_size = 8
 initial_learning_rate = 1e-2
@@ -42,18 +24,15 @@ momentum = 0.9
 
 # Training data
 
-wav_files_train = glob.glob('wav/train/*.wav')
-wav_files_test  = glob.glob('wav/test/*.wav')
-target_str = "alhamdu lilahi rabil alamin"
+wav_files_train, wav_files_test  = train_data.get_file_list(10, 5)
 
 num_examples = len(wav_files_train)
 num_batches_per_epoch = int(num_examples/batch_size)
 
-# You can preprocess the input data here
-train_inputs = prepare_inputs(wav_files_train)
+train_inputs = train_data.prepare_inputs(wav_files_train)
+train_targets = train_data.prepare_targets(wav_files_train)
 
-# You can preprocess the target data here
-train_targets = prepare_targets(target_str, num_examples)
+test_inputs = train_data.prepare_inputs(wav_files_test)
 
 # THE MAIN CODE!
 
@@ -124,8 +103,6 @@ with graph.as_default():
     ler = tf.reduce_mean(tf.edit_distance(tf.cast(decoded[0], tf.int32),
                                           targets))
 
-# Decoding all at once. Note that this isn't the best way
-test_inputs = prepare_inputs(wav_files_test)
 
 def do_decode(session, test_inputs):
 
@@ -144,6 +121,7 @@ def do_decode(session, test_inputs):
     for i, seq in enumerate(dense_decoded):
         seq = [s for s in seq if s != -1]
         print('[%d] Decoded:\t%s' % (i, utils.decode_result(seq)))
+        if (i+1) % 5 == 0: print()
 
 
 with tf.Session(graph=graph) as session:
@@ -190,8 +168,8 @@ with tf.Session(graph=graph) as session:
             print(log.format(curr_epoch+1, num_epochs, train_cost, train_ler, time.time() - start))
 
         except KeyboardInterrupt:
-            print("Train data:")
-            do_decode(session, train_inputs)
+            #print("Train data:")
+            #do_decode(session, train_inputs)
             print("\nTest data:")
             do_decode(session, test_inputs)
 

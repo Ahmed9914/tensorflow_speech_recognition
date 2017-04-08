@@ -6,8 +6,10 @@ import linecache
 
 import utils
 import numpy as np
+from downloader import reciters
 
 def get_file_list(num_train_samples, num_test_samples, shuffle=True):
+    assert num_train_samples + num_test_samples <= len(reciters)
     train_files = []
     test_files  = []
     surah = glob.glob('wav/*/*')
