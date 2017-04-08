@@ -22,7 +22,7 @@ reciters = [
     "Hani_Rifai_64kbps",
     "Hudhaify_64kbps",
     "Husary_64kbps",
-    "Ibrahim_Akhdar_64kbps",
+    "Ibrahim_Akhdar_32kbps",
     "Karim_Mansoori_40kbps",
     "Khaalid_Abdullaah_al-Qahtaanee_192kbps",
     "Maher_AlMuaiqly_64kbps",
