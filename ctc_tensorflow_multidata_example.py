@@ -16,15 +16,17 @@ num_classes = ord('z') - ord('a') + 1 + 1 + 1
 
 # Hyper-parameters
 num_epochs = 2000
-num_hidden = 300
+num_hidden = 200
 num_layers = 1
-batch_size = 8
+batch_size = 16
 initial_learning_rate = 1e-2
 momentum = 0.9
 
 # Training data
 
-wav_files_train, wav_files_test  = train_data.get_file_list(10, 5)
+num_train_data = 10
+num_test_data  = 5
+wav_files_train, wav_files_test  = train_data.get_file_list(num_train_data, num_test_data)
 
 num_examples = len(wav_files_train)
 num_batches_per_epoch = int(num_examples/batch_size)
@@ -104,24 +106,19 @@ with graph.as_default():
                                           targets))
 
 
-def do_decode(session, test_inputs):
-
-    # Padding input to max_time_step of this batch
-    batch_train_inputs, batch_train_seq_len = utils.pad_sequences(test_inputs)
+def decode_single(session, test_input):
 
     val_feed = {
-        inputs: batch_train_inputs,
-        seq_len: batch_train_seq_len
+        inputs:  np.asarray([test_input]),
+        seq_len: np.asarray([len(test_input)])
     }
 
     # Decoding
     d = session.run(decoded[0], feed_dict=val_feed)
     dense_decoded = tf.sparse_tensor_to_dense(d, default_value=-1).eval(session=session)
 
-    for i, seq in enumerate(dense_decoded):
-        seq = [s for s in seq if s != -1]
-        print('[%d] Decoded:\t%s' % (i, utils.decode_result(seq)))
-        if (i+1) % 5 == 0: print()
+    seq = [s for s in dense_decoded[0] if s != -1]
+    print('Decoded:\t%s' % (utils.decode_result(seq)))
 
 
 with tf.Session(graph=graph) as session:
@@ -168,14 +165,13 @@ with tf.Session(graph=graph) as session:
             print(log.format(curr_epoch+1, num_epochs, train_cost, train_ler, time.time() - start))
 
         except KeyboardInterrupt:
-            #print("Train data:")
-            #do_decode(session, train_inputs)
             print("\nTest data:")
-            do_decode(session, test_inputs)
+            for test in test_inputs:
+                decode_single(session, test)
 
-    print("FINISHED")
-    print("Train data:")
-    do_decode(session, train_inputs)
-    print("\nTest data:")
-    do_decode(session, test_inputs)
+    # print("FINISHED")
+    # print("Train data:")
+    # decode_single(session, train_inputs)
+    # print("\nTest data:")
+    # decode_single(session, test_inputs)
 

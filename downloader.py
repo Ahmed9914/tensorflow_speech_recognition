@@ -44,25 +44,27 @@ reciters = [
     "Yasser_Ad-Dussary_128kbps",
 ]
 
-if len(sys.argv) < 2:
-    print "For example, downloading Al-Fatihah ayah 1:\npython %s 001 001" % sys.argv[0]
-    sys.exit(1)
+if __name__ == '__main__':
 
-surah = sys.argv[1]
-ayah  = sys.argv[2]
+    if len(sys.argv) < 2:
+        print "For example, downloading Al-Fatihah ayah 1:\npython %s 001 001" % sys.argv[0]
+        sys.exit(1)
 
-directory = "wav/" + surah
-if not os.path.exists(directory):
-    os.makedirs(directory)
+    surah = sys.argv[1]
+    ayah  = sys.argv[2]
 
-directory += "/" + ayah
-if not os.path.exists(directory):
-    os.makedirs(directory)
+    directory = "wav/" + surah
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
-for i, r in enumerate(reciters):
-    dl = base + "/" + r + "/" + surah + ayah + ".mp3"
-    loc = directory + "/" + surah + ayah + "_{:02d}".format(i) + ".mp3"
-    print "[%2d/%2d] Downloading '%s' to '%s'" % (i+1, len(reciters), dl, loc)
-    urllib.urlretrieve(dl, loc)
+    directory += "/" + ayah
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    for i, r in enumerate(reciters):
+        dl = base + "/" + r + "/" + surah + ayah + ".mp3"
+        loc = directory + "/" + surah + ayah + "_{:02d}".format(i) + ".mp3"
+        print "[%2d/%2d] Downloading '%s' to '%s'" % (i+1, len(reciters), dl, loc)
+        urllib.urlretrieve(dl, loc)
 
 
