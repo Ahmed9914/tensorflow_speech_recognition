@@ -11,6 +11,8 @@ import train_data
 
 # Some configs
 num_features = 13
+epoch_save_step = 100 # save the checkpoint every
+
 # Accounting the 0th indice +  space + blank label = 28 characters
 num_classes = ord('z') - ord('a') + 1 + 1 + 1
 
@@ -26,7 +28,7 @@ momentum = 0.9
 
 num_train_data = 10
 num_test_data  = 5
-wav_files_train, wav_files_test  = train_data.get_file_list(num_train_data, num_test_data)
+wav_files_train, wav_files_test  = train_data.get_file_list(num_train_data, num_test_data, shuffle=False)
 
 num_examples = len(wav_files_train)
 num_batches_per_epoch = int(num_examples/batch_size)
@@ -122,11 +124,26 @@ def decode_single(session, test_input):
 
 
 with tf.Session(graph=graph) as session:
-    # Initializate the weights and biases
-    tf.global_variables_initializer().run()
+
+    saver = tf.train.Saver(tf.global_variables())
+    snapshot = "ctc"
+    checkpoint = tf.train.latest_checkpoint(checkpoint_dir="checkpoints")
+    last_epoch = 0
+
+    if checkpoint:
+        print("[i] LOADING checkpoint " + checkpoint)
+        try:
+            saver.restore(session, checkpoint)
+            last_epoch = int(checkpoint.split('-')[-1]) + 1
+            print("[i] start from epoch %d" % last_epoch)
+        except:
+            print("[!] incompatible checkpoint, restarting from 0")
+    else:
+        # Initializate the weights and biases
+        tf.global_variables_initializer().run()
 
 
-    for curr_epoch in range(num_epochs):
+    for curr_epoch in range(last_epoch, num_epochs):
         train_cost = train_ler = 0
         start = time.time()
 
@@ -162,16 +179,21 @@ with tf.Session(graph=graph) as session:
             train_ler /= num_examples
 
             log = "Epoch {}/{}, train_cost = {:.3f}, train_ler = {:.3f}, time = {:.3f}"
-            print(log.format(curr_epoch+1, num_epochs, train_cost, train_ler, time.time() - start))
+            print(log.format(curr_epoch, num_epochs, train_cost, train_ler, time.time() - start))
+
+            if curr_epoch % epoch_save_step == 0 and curr_epoch > 0:
+                print("[i] SAVING snapshot %s" % snapshot)
+                saver.save(session, "checkpoints/" + snapshot + ".ckpt", curr_epoch)
 
         except KeyboardInterrupt:
             print("\nTest data:")
             for test in test_inputs:
                 decode_single(session, test)
 
-    # print("FINISHED")
-    # print("Train data:")
-    # decode_single(session, train_inputs)
-    # print("\nTest data:")
-    # decode_single(session, test_inputs)
-
+    print("FINISHED")
+    print("Train data:")
+    for test in train_inputs:
+        decode_single(session, test)
+    print("\nTest data:")
+    for test in test_inputs:
+        decode_single(session, test)
